@@ -1,0 +1,14 @@
+spring:
+  r2dbc:
+    url: ${R2DBC_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+
+  flyway:
+    url: ${FLYWAY_URL}
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+
+logging:
+  level:
+    com.nequi.franchises: INFO
