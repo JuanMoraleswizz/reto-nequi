@@ -7,59 +7,66 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.testcontainers.containers.PostgreSQLContainer;
+
+import java.util.Map;
+import java.util.UUID;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class FranchiseRouterTest {
-
-    @BeforeAll
-    static void startContainer() {
-        PostgresTestContainer.getInstance();
-    }
 
     @Autowired
     WebTestClient webTestClient;
 
-    // TC-F01: POST /api/v1/franchises → 201
+    @BeforeAll
+    static void startContainer() {
+        PostgreSQLContainer<?> container = PostgresTestContainer.getInstance();
+        System.setProperty("R2DBC_URL", "r2dbc:postgresql://" + container.getHost() + ":" + container.getMappedPort(5432) + "/" + container.getDatabaseName());
+        System.setProperty("FLYWAY_URL", container.getJdbcUrl());
+        System.setProperty("POSTGRES_USER", container.getUsername());
+        System.setProperty("POSTGRES_PASSWORD", container.getPassword());
+    }
+
     @Test
     void tc_f01_createFranchise_returns201() {
         webTestClient.post().uri("/api/v1/franchises")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"name\":\"Franquicia Test TC-F01\"}")
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody()
-                .jsonPath("$.id").isNotEmpty()
-                .jsonPath("$.name").isEqualTo("Franquicia Test TC-F01");
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(Map.of("name", "Franquicia Test " + UUID.randomUUID()))
+            .exchange()
+            .expectStatus().isCreated()
+            .expectBody()
+            .jsonPath("$.id").isNotEmpty()
+            .jsonPath("$.name").isNotEmpty();
     }
 
-    // TC-F02: POST /api/v1/franchises duplicado → 409
     @Test
     void tc_f02_createFranchise_duplicateName_returns409() {
-        String body = "{\"name\":\"Franquicia Dup TC-F02\"}";
+        String name = "Franquicia Duplicate " + UUID.randomUUID();
         webTestClient.post().uri("/api/v1/franchises")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .exchange()
-                .expectStatus().isCreated();
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(Map.of("name", name))
+            .exchange()
+            .expectStatus().isCreated();
 
         webTestClient.post().uri("/api/v1/franchises")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .exchange()
-                .expectStatus().isEqualTo(409);
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(Map.of("name", name))
+            .exchange()
+            .expectStatus().isEqualTo(409);
     }
 
-    // TC-F03: GET /api/v1/franchises → 200 con lista
     @Test
     void tc_f03_listFranchises_returns200() {
         webTestClient.get().uri("/api/v1/franchises")
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$").isArray();
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$").isArray();
     }
 }

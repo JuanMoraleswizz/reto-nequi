@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Service
 public class BranchService implements BranchUseCase {
 
@@ -22,23 +24,37 @@ public class BranchService implements BranchUseCase {
     }
 
     @Override
-    public Mono<Branch> createBranch(Long franchiseId, String name) {
+    public Mono<Branch> createBranch(UUID franchiseId, String name) {
         return franchiseRepository.findById(franchiseId)
-                .switchIfEmpty(Mono.error(new FranchiseNotFoundException(franchiseId)))
-                .flatMap(f -> branchRepository.save(
-                        Branch.builder().name(name).franchiseId(franchiseId).build()));
+            .switchIfEmpty(Mono.error(new FranchiseNotFoundException(franchiseId)))
+            .flatMap(franchise -> {
+                Branch branch = Branch.builder().franchiseId(franchiseId).name(name).build();
+                return branchRepository.save(branch);
+            });
     }
 
     @Override
-    public Flux<Branch> listBranchesByFranchise(Long franchiseId) {
+    public Flux<Branch> listBranchesByFranchise(UUID franchiseId) {
         return franchiseRepository.findById(franchiseId)
-                .switchIfEmpty(Mono.error(new FranchiseNotFoundException(franchiseId)))
-                .thenMany(branchRepository.findByFranchiseId(franchiseId));
+            .switchIfEmpty(Mono.error(new FranchiseNotFoundException(franchiseId)))
+            .flatMapMany(f -> branchRepository.findByFranchiseId(franchiseId));
     }
 
     @Override
-    public Mono<Branch> getBranchById(Long id) {
+    public Mono<Branch> getBranchById(UUID id) {
         return branchRepository.findById(id)
-                .switchIfEmpty(Mono.error(new BranchNotFoundException(id)));
+            .switchIfEmpty(Mono.error(new BranchNotFoundException(id)));
+    }
+
+    @Override
+    public Mono<Branch> updateBranchName(UUID franchiseId, UUID branchId, String newName) {
+        return franchiseRepository.findById(franchiseId)
+            .switchIfEmpty(Mono.error(new FranchiseNotFoundException(franchiseId)))
+            .flatMap(franchise -> branchRepository.findById(branchId))
+            .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
+            .flatMap(branch -> {
+                branch.setName(newName);
+                return branchRepository.save(branch);
+            });
     }
 }

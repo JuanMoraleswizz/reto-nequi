@@ -4,8 +4,11 @@ import com.nequi.franchises.domain.model.Branch;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 public interface BranchUseCase {
-    Mono<Branch> createBranch(Long franchiseId, String name);
-    Flux<Branch> listBranchesByFranchise(Long franchiseId);
-    Mono<Branch> getBranchById(Long id);
+    Mono<Branch> createBranch(UUID franchiseId, String name);
+    Flux<Branch> listBranchesByFranchise(UUID franchiseId);
+    Mono<Branch> getBranchById(UUID id);
+    Mono<Branch> updateBranchName(UUID franchiseId, UUID branchId, String newName);
 }

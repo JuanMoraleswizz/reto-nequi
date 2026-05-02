@@ -5,11 +5,13 @@ import com.nequi.franchises.domain.model.Product;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Query;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Component
+import java.util.UUID;
+
+@Repository
 public class ProductR2dbcRepository implements ProductRepository {
 
     private final R2dbcEntityTemplate template;
@@ -21,23 +23,24 @@ public class ProductR2dbcRepository implements ProductRepository {
     @Override
     public Mono<Product> save(Product product) {
         if (product.getId() == null) {
+            product.setId(UUID.randomUUID());
             return template.insert(product);
         }
         return template.update(product);
     }
 
     @Override
-    public Mono<Product> findById(Long id) {
+    public Mono<Product> findById(UUID id) {
         return template.selectOne(Query.query(Criteria.where("id").is(id)), Product.class);
     }
 
     @Override
-    public Flux<Product> findByBranchId(Long branchId) {
+    public Flux<Product> findByBranchId(UUID branchId) {
         return template.select(Query.query(Criteria.where("branch_id").is(branchId)), Product.class);
     }
 
     @Override
-    public Mono<Void> deleteById(Long id) {
+    public Mono<Void> deleteById(UUID id) {
         return template.delete(Query.query(Criteria.where("id").is(id)), Product.class).then();
     }
 }

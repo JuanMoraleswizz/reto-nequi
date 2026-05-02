@@ -5,11 +5,13 @@ import com.nequi.franchises.domain.model.Franchise;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Query;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Component
+import java.util.UUID;
+
+@Repository
 public class FranchiseR2dbcRepository implements FranchiseRepository {
 
     private final R2dbcEntityTemplate template;
@@ -20,11 +22,15 @@ public class FranchiseR2dbcRepository implements FranchiseRepository {
 
     @Override
     public Mono<Franchise> save(Franchise franchise) {
-        return template.insert(franchise);
+        if (franchise.getId() == null) {
+            franchise.setId(UUID.randomUUID());
+            return template.insert(franchise);
+        }
+        return template.update(franchise);
     }
 
     @Override
-    public Mono<Franchise> findById(Long id) {
+    public Mono<Franchise> findById(UUID id) {
         return template.selectOne(Query.query(Criteria.where("id").is(id)), Franchise.class);
     }
 

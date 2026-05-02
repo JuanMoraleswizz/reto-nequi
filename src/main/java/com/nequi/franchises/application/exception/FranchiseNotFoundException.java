@@ -1,7 +1,9 @@
 package com.nequi.franchises.application.exception;
 
+import java.util.UUID;
+
 public class FranchiseNotFoundException extends RuntimeException {
-    public FranchiseNotFoundException(Long id) {
-        super("Franchise not found with id: " + id);
+    public FranchiseNotFoundException(UUID id) {
+        super("Franchise with id " + id + " not found");
     }
 }

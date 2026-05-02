@@ -1,7 +1,9 @@
 package com.nequi.franchises.application.exception;
 
+import java.util.UUID;
+
 public class ProductNotFoundException extends RuntimeException {
-    public ProductNotFoundException(Long id) {
-        super("Product not found with id: " + id);
+    public ProductNotFoundException(UUID id) {
+        super("Product with id " + id + " not found");
     }
 }

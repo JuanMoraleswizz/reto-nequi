@@ -5,11 +5,13 @@ import com.nequi.franchises.domain.model.Branch;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Query;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-@Component
+import java.util.UUID;
+
+@Repository
 public class BranchR2dbcRepository implements BranchRepository {
 
     private final R2dbcEntityTemplate template;
@@ -20,16 +22,20 @@ public class BranchR2dbcRepository implements BranchRepository {
 
     @Override
     public Mono<Branch> save(Branch branch) {
-        return template.insert(branch);
+        if (branch.getId() == null) {
+            branch.setId(UUID.randomUUID());
+            return template.insert(branch);
+        }
+        return template.update(branch);
     }
 
     @Override
-    public Mono<Branch> findById(Long id) {
+    public Mono<Branch> findById(UUID id) {
         return template.selectOne(Query.query(Criteria.where("id").is(id)), Branch.class);
     }
 
     @Override
-    public Flux<Branch> findByFranchiseId(Long franchiseId) {
+    public Flux<Branch> findByFranchiseId(UUID franchiseId) {
         return template.select(Query.query(Criteria.where("franchise_id").is(franchiseId)), Branch.class);
     }
 }

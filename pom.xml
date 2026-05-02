@@ -22,7 +22,7 @@
 
   <properties>
     <java.version>17</java.version>
-    <testcontainers.version>1.19.8</testcontainers.version>
+    <testcontainers.version>1.20.4</testcontainers.version>
     <flyway.version>10.13.0</flyway.version>
   </properties>
 
@@ -138,6 +138,22 @@
 
   <build>
     <plugins>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <environmentVariables>
+            <DOCKER_HOST>unix:///Users/juanmorales/Library/Containers/com.docker.docker/Data/docker.raw.sock</DOCKER_HOST>
+            <TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>/var/run/docker.sock</TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE>
+          </environmentVariables>
+          <systemPropertyVariables>
+            <DOCKER_HOST>unix:///Users/juanmorales/Library/Containers/com.docker.docker/Data/docker.raw.sock</DOCKER_HOST>
+            <api.version>1.44</api.version>
+          </systemPropertyVariables>
+          <argLine>-Dapi.version=1.44</argLine>
+        </configuration>
+      </plugin>
 
       <plugin>
         <groupId>org.springframework.boot</groupId>

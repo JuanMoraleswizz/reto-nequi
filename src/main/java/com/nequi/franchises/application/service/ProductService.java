@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.UUID;
+
 @Service
 public class ProductService implements ProductUseCase {
 
@@ -23,42 +25,56 @@ public class ProductService implements ProductUseCase {
     }
 
     @Override
-    public Mono<Product> addProduct(Long branchId, String name, Integer stock) {
+    public Mono<Product> addProduct(UUID branchId, String name, Integer stock) {
         if (stock < 0) return Mono.error(new InvalidStockException(stock));
         return branchRepository.findById(branchId)
-                .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
-                .flatMap(b -> productRepository.save(
-                        Product.builder().name(name).stock(stock).branchId(branchId).build()));
+            .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
+            .flatMap(branch -> {
+                Product product = Product.builder().branchId(branchId).name(name).stock(stock).build();
+                return productRepository.save(product);
+            });
     }
 
     @Override
-    public Mono<Void> deleteProduct(Long productId) {
+    public Mono<Void> deleteProduct(UUID productId) {
         return productRepository.findById(productId)
-                .switchIfEmpty(Mono.error(new ProductNotFoundException(productId)))
-                .flatMap(p -> productRepository.deleteById(p.getId()));
+            .switchIfEmpty(Mono.error(new ProductNotFoundException(productId)))
+            .flatMap(p -> productRepository.deleteById(productId));
     }
 
     @Override
-    public Mono<Product> updateStock(Long productId, Integer stock) {
+    public Mono<Product> updateStock(UUID productId, Integer stock) {
         if (stock < 0) return Mono.error(new InvalidStockException(stock));
         return productRepository.findById(productId)
-                .switchIfEmpty(Mono.error(new ProductNotFoundException(productId)))
-                .flatMap(p -> {
-                    p.setStock(stock);
-                    return productRepository.save(p);
-                });
+            .switchIfEmpty(Mono.error(new ProductNotFoundException(productId)))
+            .flatMap(product -> {
+                product.setStock(stock);
+                return productRepository.save(product);
+            });
     }
 
     @Override
-    public Flux<Product> listProductsByBranch(Long branchId) {
+    public Flux<Product> listProductsByBranch(UUID branchId) {
         return branchRepository.findById(branchId)
-                .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
-                .thenMany(productRepository.findByBranchId(branchId));
+            .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
+            .flatMapMany(b -> productRepository.findByBranchId(branchId));
     }
 
     @Override
-    public Mono<Product> getProductById(Long id) {
+    public Mono<Product> getProductById(UUID id) {
         return productRepository.findById(id)
-                .switchIfEmpty(Mono.error(new ProductNotFoundException(id)));
+            .switchIfEmpty(Mono.error(new ProductNotFoundException(id)));
+    }
+
+    @Override
+    public Mono<Product> updateProductName(UUID franchiseId, UUID branchId, UUID productId, String newName) {
+        return branchRepository.findById(branchId)
+            .switchIfEmpty(Mono.error(new BranchNotFoundException(branchId)))
+            .flatMap(branch -> productRepository.findById(productId))
+            .switchIfEmpty(Mono.error(new ProductNotFoundException(productId)))
+            .flatMap(product -> {
+                product.setName(newName);
+                return productRepository.save(product);
+            });
     }
 }
