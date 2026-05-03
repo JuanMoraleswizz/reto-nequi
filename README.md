@@ -174,6 +174,197 @@ docker run -p 8080:8080 \
 
 La documentación interactiva completa está disponible en `/swagger-ui.html`.
 
+### Ejemplos curl
+
+> Los IDs son UUIDs generados por la base de datos. El flujo típico es: crear franquicia → agregar sucursal → agregar producto → operar sobre el producto.
+
+---
+
+#### POST `/api/v1/franchises` — Crear franquicia
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/franchises \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Franquicia Colombia"}' | jq
+```
+
+```json
+{
+  "id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "name": "Franquicia Colombia"
+}
+```
+
+---
+
+#### PATCH `/api/v1/franchises/{franchiseId}/name` — Renombrar franquicia
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+
+curl -s -X PATCH http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/name \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Franquicia Colombia Actualizada"}' | jq
+```
+
+```json
+{
+  "id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "name": "Franquicia Colombia Actualizada"
+}
+```
+
+---
+
+#### GET `/api/v1/franchises/{franchiseId}/top-stock` — Producto con más stock por sucursal
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+
+curl -s http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/top-stock | jq
+```
+
+```json
+[
+  {
+    "branchId": "b1b2c3d4-0000-0000-0000-000000000002",
+    "branchName": "Sucursal Bogotá",
+    "productId": "c1b2c3d4-0000-0000-0000-000000000003",
+    "productName": "Producto A",
+    "stock": 150
+  }
+]
+```
+
+---
+
+#### POST `/api/v1/franchises/{franchiseId}/branches` — Agregar sucursal
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+
+curl -s -X POST http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Sucursal Bogotá"}' | jq
+```
+
+```json
+{
+  "id": "b1b2c3d4-0000-0000-0000-000000000002",
+  "name": "Sucursal Bogotá",
+  "franchiseId": "a1b2c3d4-0000-0000-0000-000000000001"
+}
+```
+
+---
+
+#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/name` — Renombrar sucursal
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
+
+curl -s -X PATCH http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/name \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Sucursal Bogotá Norte"}' | jq
+```
+
+```json
+{
+  "id": "b1b2c3d4-0000-0000-0000-000000000002",
+  "name": "Sucursal Bogotá Norte",
+  "franchiseId": "a1b2c3d4-0000-0000-0000-000000000001"
+}
+```
+
+---
+
+#### POST `/api/v1/franchises/{franchiseId}/branches/{branchId}/products` — Agregar producto
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
+
+curl -s -X POST http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Producto A", "stock": 150}' | jq
+```
+
+```json
+{
+  "id": "c1b2c3d4-0000-0000-0000-000000000003",
+  "name": "Producto A",
+  "stock": 150,
+  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
+}
+```
+
+---
+
+#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}/stock` — Modificar stock
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
+PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
+
+curl -s -X PATCH \
+  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID/stock \
+  -H "Content-Type: application/json" \
+  -d '{"stock": 200}' | jq
+```
+
+```json
+{
+  "id": "c1b2c3d4-0000-0000-0000-000000000003",
+  "name": "Producto A",
+  "stock": 200,
+  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
+}
+```
+
+---
+
+#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}/name` — Renombrar producto
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
+PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
+
+curl -s -X PATCH \
+  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID/name \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Producto A Premium"}' | jq
+```
+
+```json
+{
+  "id": "c1b2c3d4-0000-0000-0000-000000000003",
+  "name": "Producto A Premium",
+  "stock": 200,
+  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
+}
+```
+
+---
+
+#### DELETE `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}` — Eliminar producto
+
+```bash
+FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
+BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
+PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
+
+curl -s -X DELETE \
+  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID \
+  -w "\nHTTP %{http_code}\n"
+```
+
+```
+HTTP 204
+```
+
 ---
 
 ## 6. Ejecutar tests
