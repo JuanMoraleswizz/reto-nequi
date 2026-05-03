@@ -6,7 +6,7 @@ import com.nequi.franchises.application.port.in.FranchiseUseCase;
 import com.nequi.franchises.application.port.out.FranchiseRepository;
 import com.nequi.franchises.domain.model.Franchise;
 import com.nequi.franchises.infrastructure.adapter.in.web.dto.TopStockResponse;
-import com.nequi.franchises.infrastructure.adapter.out.persistence.ProductCustomRepository;
+import com.nequi.franchises.application.port.out.TopStockRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,10 +17,10 @@ import java.util.UUID;
 public class FranchiseService implements FranchiseUseCase {
 
     private final FranchiseRepository franchiseRepository;
-    private final ProductCustomRepository productCustomRepository;
+    private final TopStockRepository productCustomRepository;
 
     public FranchiseService(FranchiseRepository franchiseRepository,
-                            ProductCustomRepository productCustomRepository) {
+                            TopStockRepository productCustomRepository) {
         this.franchiseRepository = franchiseRepository;
         this.productCustomRepository = productCustomRepository;
     }

@@ -134,6 +134,47 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- ── Karate DSL ────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>com.intuit.karate</groupId>
+      <artifactId>karate-junit5</artifactId>
+      <version>1.4.1</version>
+      <scope>test</scope>
+      <exclusions>
+        <!-- GraalVM 22.3.3 usa sun.misc.Unsafe.ensureClassInitialized,
+             eliminado en Java 23+. Se reemplaza por GraalVM 24.x         -->
+        <exclusion>
+          <groupId>org.graalvm.js</groupId>
+          <artifactId>js</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.graalvm.js</groupId>
+          <artifactId>js-scriptengine</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.graalvm.sdk</groupId>
+          <artifactId>graal-sdk</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.graalvm.truffle</groupId>
+          <artifactId>truffle-api</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.graalvm.regex</groupId>
+          <artifactId>regex</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- GraalVM 24.x — compatible con Java 23/24/25 -->
+    <dependency>
+      <groupId>org.graalvm.polyglot</groupId>
+      <artifactId>js-community</artifactId>
+      <version>24.2.1</version>
+      <type>pom</type>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
   <build>
@@ -185,6 +226,31 @@
             <goals>
               <goal>report</goal>
             </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Cucumber HTML Reports (Masterthought) — procesa los JSON de Karate -->
+      <plugin>
+        <groupId>net.masterthought</groupId>
+        <artifactId>maven-cucumber-reporting</artifactId>
+        <version>5.8.1</version>
+        <executions>
+          <execution>
+            <id>generate-cucumber-reports</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <configuration>
+              <projectName>Franchises API — Nequi</projectName>
+              <outputDirectory>${project.build.directory}/cucumber-reports</outputDirectory>
+              <inputDirectory>${project.build.directory}/karate-reports</inputDirectory>
+              <jsonFiles>
+                <param>**/*.json</param>
+              </jsonFiles>
+              <checkBuildResult>false</checkBuildResult>
+            </configuration>
           </execution>
         </executions>
       </plugin>

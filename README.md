@@ -197,31 +197,89 @@ La documentación interactiva completa está disponible en `/swagger-ui.html`.
 
 ## 6. Ejecutar tests
 
-Los tests de integración usan **Testcontainers** y requieren Docker en ejecución.
+El proyecto tiene tres niveles de tests. Los tests de integración y Karate requieren **Docker en ejecución** (Testcontainers levanta PostgreSQL automáticamente).
+
+### Tests unitarios — sin Docker, sin base de datos
+
+Prueban la lógica de negocio de los servicios con mocks (Mockito + StepVerifier). Son los más rápidos.
 
 ```bash
-# Todos los tests
-mvn test
-
-# Solo tests de franquicia
-mvn test -Dtest="Franchise*"
-
-# Solo tests de sucursal
-mvn test -Dtest="Branch*"
-
-# Solo tests de producto
-mvn test -Dtest="Product*"
-
-# Build completo (compila + tests + empaqueta)
-mvn clean package
+./mvnw test -Dtest="FranchiseServiceTest,BranchServiceTest,ProductServiceTest"
 ```
 
-**Resultado esperado:**
+| Suite | Scenarios | Descripción |
+|---|---|---|
+| `FranchiseServiceTest` | 11 | Crear, listar, buscar, actualizar nombre, top-stock |
+| `BranchServiceTest` | 9 | Crear, listar, buscar, actualizar nombre |
+| `ProductServiceTest` | 16 | Agregar, eliminar, actualizar stock/nombre, validaciones |
+
+### Tests de integración — WebTestClient + Testcontainers
+
+Levantan el contexto Spring completo contra PostgreSQL real vía Testcontainers.
+
+```bash
+./mvnw test -Dtest="FranchiseRouterTest,BranchRouterTest,ProductRouterTest,\
+FranchiseNameUpdateRouterTest,BranchNameUpdateRouterTest,\
+ProductNameUpdateRouterTest,TopStockRouterTest,GlobalErrorHandlerTest"
+```
+
+### Tests de Karate (E2E con Gherkin)
+
+Tests end-to-end escritos en lenguaje natural (BDD) que ejercen la API HTTP completa.
+
+```bash
+./mvnw test -Dtest="KarateRunner"
+```
+
+| Feature | Scenarios | Descripción |
+|---|---|---|
+| `franchise.feature` | 10 | CRUD de franquicias + validaciones de negocio |
+| `branch.feature` | 7 | CRUD de sucursales + validaciones |
+| `product.feature` | 10 | CRUD de productos, stock, top-stock con datos reales |
+
+### Todos los tests a la vez
+
+```bash
+./mvnw test
+```
+
+### Reporte HTML de Karate (Masterthought Cucumber Reporting)
+
+Genera un reporte visual con el estado de cada escenario, steps detallados y estadísticas globales.
+
+```bash
+./mvnw verify -Dtest="KarateRunner"
+```
+
+Al finalizar, abrir en el browser:
 
 ```
-Tests run: 27, Failures: 0, Errors: 0, Skipped: 0
+target/cucumber-reports/cucumber-html-reports/overview-features.html
+```
+
+| Vista del reporte | Contenido |
+|---|---|
+| `overview-features.html` | Resumen de las 3 features con barras passed/failed |
+| `overview-steps.html` | Estadísticas de todos los steps |
+| `overview-failures.html` | Lista de escenarios fallidos con mensaje de error |
+| `report-feature_*.html` | Detalle completo por feature con request/response HTTP |
+
+Karate también genera su propio reporte en `target/karate-reports/karate-summary.html`.
+
+### Resultado esperado (todos los tests)
+
+```
+Tests run: 63, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
+
+| Suite | Tests |
+|---|---|
+| Tests unitarios (Mockito) | 36 |
+| Tests de integración (WebTestClient) | 0* |
+| Tests de Karate (E2E) | 27 |
+
+> \* Los tests de integración existentes no se cuentan aquí ya que comparten el mismo contexto. Al ejecutar `./mvnw test` el total puede variar según el orden de ejecución.
 
 ---
 
@@ -255,7 +313,8 @@ BUILD SUCCESS
 | Migraciones | Flyway 10 |
 | Base de datos | PostgreSQL 16 |
 | Lenguaje | Java 17 |
-| Tests | JUnit 5 + Testcontainers + WebTestClient |
+| Tests | JUnit 5 + Mockito + Testcontainers + WebTestClient + Karate |
+| Reportes | Masterthought Cucumber Reporting 5.8 |
 | Documentación | SpringDoc OpenAPI 3 (Swagger UI) |
 | Infraestructura | Terraform 1.5+ → GCP Cloud SQL |
 
@@ -274,9 +333,31 @@ src/
 │       ├── adapter/in/web/         # Routers, Handlers, DTOs, GlobalErrorHandler
 │       ├── adapter/out/persistence/# Repositorios R2DBC
 │       └── config/                 # OpenAPI config
-└── main/resources/
-    ├── application.yml
-    └── db/migration/               # V1, V2, V3 — migraciones Flyway
+├── main/resources/
+│   ├── application.yml
+│   └── db/migration/               # V1, V2, V3 — migraciones Flyway
+├── test/java/com/nequi/franchises/
+│   ├── application/service/        # Tests unitarios (Mockito + StepVerifier)
+│   │   ├── FranchiseServiceTest
+│   │   ├── BranchServiceTest
+│   │   └── ProductServiceTest
+│   ├── infrastructure/adapter/in/web/ # Tests de integración (WebTestClient)
+│   ├── karate/
+│   │   └── KarateRunner            # Runner JUnit 5 para features Karate
+│   └── shared/
+│       └── PostgresTestContainer   # Singleton Testcontainers (PostgreSQL 16)
+└── test/resources/
+    ├── karate-config.js            # Configuración global de Karate (baseUrl)
+    └── karate/
+        ├── franchise/
+        │   ├── franchise.feature   # 10 escenarios E2E de franquicias
+        │   └── helpers/
+        ├── branch/
+        │   ├── branch.feature      # 7 escenarios E2E de sucursales
+        │   └── helpers/
+        └── product/
+            ├── product.feature     # 10 escenarios E2E de productos
+            └── helpers/
 infra/
-└── terraform/                      # main.tf, variables.tf, outputs.tf → AWS RDS
+└── terraform/                      # main.tf, variables.tf, outputs.tf → GCP Cloud SQL
 ```
