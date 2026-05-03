@@ -8,7 +8,7 @@ import reactor.core.publisher.Flux;
 import java.util.UUID;
 
 @Repository
-public class ProductCustomRepository {
+public class ProductCustomRepository implements com.nequi.franchises.application.port.out.TopStockRepository {
 
     private final DatabaseClient databaseClient;
 
