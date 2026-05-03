@@ -8,7 +8,7 @@ API reactiva para gestionar franquicias, sucursales y productos. Construida con 
 
 1. [Requisitos previos](#1-requisitos-previos)
 2. [Quickstart local (docker-compose)](#2-quickstart-local-docker-compose)
-3. [Despliegue en AWS (Terraform + RDS)](#3-despliegue-en-aws-terraform--rds)
+3. [Despliegue en GCP (Terraform + Cloud SQL)](#3-despliegue-en-gcp-terraform--cloud-sql)
 4. [Variables de entorno](#4-variables-de-entorno)
 5. [Endpoints disponibles](#5-endpoints-disponibles)
 6. [Ejecutar tests](#6-ejecutar-tests)
@@ -24,8 +24,8 @@ API reactiva para gestionar franquicias, sucursales y productos. Construida con 
 | Maven | 3.8 | Gestión de dependencias y build |
 | Docker | 24+ | Contenedores de app y base de datos |
 | Docker Compose | 2.20+ | Orquestación local |
-| Terraform | 1.5+ | Despliegue de infraestructura en AWS |
-| Cuenta AWS | — | RDS, VPC, Security Groups (solo AWS) |
+| Terraform | 1.5+ | Despliegue de infraestructura en GCP |
+| Cuenta GCP | — | Cloud SQL, VPC, Compute (solo GCP) |
 
 ---
 
@@ -80,7 +80,21 @@ docker compose down -v
 
 ---
 
-## 3. Despliegue en AWS (Terraform + RDS)
+## 3. Despliegue en GCP (Terraform + Cloud SQL)
+
+### Prerrequisitos GCP
+
+- Tener instalado y autenticado el [Google Cloud CLI](https://cloud.google.com/sdk/docs/install):
+  ```bash
+  gcloud auth application-default login
+  ```
+- Habilitar las APIs necesarias en el proyecto:
+  ```bash
+  gcloud services enable sqladmin.googleapis.com \
+    servicenetworking.googleapis.com \
+    compute.googleapis.com \
+    --project=MY_PROJECT_ID
+  ```
 
 ### Paso 1 — Inicializar Terraform
 
@@ -93,8 +107,8 @@ terraform init
 
 ```bash
 terraform plan \
-  -var="vpc_id=vpc-xxxxxxxx" \
-  -var='subnet_ids=["subnet-aaaa","subnet-bbbb"]' \
+  -var="gcp_project=MY_PROJECT_ID" \
+  -var="vpc_network=projects/MY_PROJECT_ID/global/networks/default" \
   -var="db_username=nequi_app" \
   -var="db_password=YOUR_SECURE_PASSWORD"
 ```
@@ -103,25 +117,27 @@ terraform plan \
 
 ```bash
 terraform apply \
-  -var="vpc_id=vpc-xxxxxxxx" \
-  -var='subnet_ids=["subnet-aaaa","subnet-bbbb"]' \
+  -var="gcp_project=MY_PROJECT_ID" \
+  -var="vpc_network=projects/MY_PROJECT_ID/global/networks/default" \
   -var="db_username=nequi_app" \
   -var="db_password=YOUR_SECURE_PASSWORD"
 ```
 
+> El aprovisionamiento de Cloud SQL tarda aproximadamente 5-10 minutos.
+
 ### Paso 4 — Obtener las URLs de conexión
 
 ```bash
-terraform output rds_r2dbc_url    # → valor para R2DBC_URL
-terraform output rds_flyway_url   # → valor para FLYWAY_URL
+terraform output cloudsql_r2dbc_url    # → valor para R2DBC_URL
+terraform output cloudsql_flyway_url   # → valor para FLYWAY_URL
 ```
 
-### Paso 5 — Ejecutar la imagen contra RDS
+### Paso 5 — Ejecutar la imagen contra Cloud SQL
 
 ```bash
 docker run -p 8080:8080 \
-  -e R2DBC_URL="$(terraform output -raw rds_r2dbc_url)" \
-  -e FLYWAY_URL="$(terraform output -raw rds_flyway_url)" \
+  -e R2DBC_URL="$(terraform output -raw cloudsql_r2dbc_url)" \
+  -e FLYWAY_URL="$(terraform output -raw cloudsql_flyway_url)" \
   -e POSTGRES_USER=nequi_app \
   -e POSTGRES_PASSWORD=YOUR_SECURE_PASSWORD \
   nequi/franchises:latest
@@ -129,11 +145,14 @@ docker run -p 8080:8080 \
 
 ### Recursos de Terraform creados
 
-| Recurso | Tipo | Descripción |
+| Recurso | Tipo GCP | Descripción |
 |---|---|---|
-| `franchises-rds` | `aws_db_instance` | PostgreSQL 16, `db.t3.micro`, 20GB gp2, cifrado en reposo |
-| `franchises-rds-sg` | `aws_security_group` | Permite TCP:5432 desde los CIDRs configurados |
-| `franchises-rds-subnet-group` | `aws_db_subnet_group` | Grupo de subnets para alta disponibilidad |
+| `franchises-cloudsql` | `google_sql_database_instance` | PostgreSQL 16, `db-f1-micro`, 20GB SSD, IP privada |
+| `franchises_db` | `google_sql_database` | Base de datos dentro de la instancia |
+| `nequi_app` | `google_sql_user` | Usuario de aplicación |
+| `franchises-allow-postgres` | `google_compute_firewall` | Permite TCP:5432 desde los CIDRs configurados |
+| `franchises-cloudsql-private-ip` | `google_compute_global_address` | Rango IP reservado para peering privado con Cloud SQL |
+| VPC peering | `google_service_networking_connection` | Conexión privada entre el VPC y `servicenetworking.googleapis.com` |
 
 ---
 
@@ -143,8 +162,8 @@ docker run -p 8080:8080 \
 
 | Variable | Descripción | Ejemplo |
 |---|---|---|
-| `R2DBC_URL` | URL de conexión R2DBC para runtime | `r2dbc:postgresql://host:5432/franchises_db` |
-| `FLYWAY_URL` | URL JDBC para migraciones Flyway al arrancar | `jdbc:postgresql://host:5432/franchises_db` |
+| `R2DBC_URL` | URL de conexión R2DBC para runtime | `r2dbc:postgresql://<cloudsql-private-ip>:5432/franchises_db` |
+| `FLYWAY_URL` | URL JDBC para migraciones Flyway al arrancar | `jdbc:postgresql://<cloudsql-private-ip>:5432/franchises_db` |
 | `POSTGRES_USER` | Usuario de la base de datos | `nequi_app` |
 | `POSTGRES_PASSWORD` | Contraseña de la base de datos | `***` |
 
@@ -173,197 +192,6 @@ docker run -p 8080:8080 \
 | `PATCH` | `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}/name` | Renombrar producto |
 
 La documentación interactiva completa está disponible en `/swagger-ui.html`.
-
-### Ejemplos curl
-
-> Los IDs son UUIDs generados por la base de datos. El flujo típico es: crear franquicia → agregar sucursal → agregar producto → operar sobre el producto.
-
----
-
-#### POST `/api/v1/franchises` — Crear franquicia
-
-```bash
-curl -s -X POST http://localhost:8080/api/v1/franchises \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Franquicia Colombia"}' | jq
-```
-
-```json
-{
-  "id": "a1b2c3d4-0000-0000-0000-000000000001",
-  "name": "Franquicia Colombia"
-}
-```
-
----
-
-#### PATCH `/api/v1/franchises/{franchiseId}/name` — Renombrar franquicia
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-
-curl -s -X PATCH http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/name \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Franquicia Colombia Actualizada"}' | jq
-```
-
-```json
-{
-  "id": "a1b2c3d4-0000-0000-0000-000000000001",
-  "name": "Franquicia Colombia Actualizada"
-}
-```
-
----
-
-#### GET `/api/v1/franchises/{franchiseId}/top-stock` — Producto con más stock por sucursal
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-
-curl -s http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/top-stock | jq
-```
-
-```json
-[
-  {
-    "branchId": "b1b2c3d4-0000-0000-0000-000000000002",
-    "branchName": "Sucursal Bogotá",
-    "productId": "c1b2c3d4-0000-0000-0000-000000000003",
-    "productName": "Producto A",
-    "stock": 150
-  }
-]
-```
-
----
-
-#### POST `/api/v1/franchises/{franchiseId}/branches` — Agregar sucursal
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-
-curl -s -X POST http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Sucursal Bogotá"}' | jq
-```
-
-```json
-{
-  "id": "b1b2c3d4-0000-0000-0000-000000000002",
-  "name": "Sucursal Bogotá",
-  "franchiseId": "a1b2c3d4-0000-0000-0000-000000000001"
-}
-```
-
----
-
-#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/name` — Renombrar sucursal
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
-
-curl -s -X PATCH http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/name \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Sucursal Bogotá Norte"}' | jq
-```
-
-```json
-{
-  "id": "b1b2c3d4-0000-0000-0000-000000000002",
-  "name": "Sucursal Bogotá Norte",
-  "franchiseId": "a1b2c3d4-0000-0000-0000-000000000001"
-}
-```
-
----
-
-#### POST `/api/v1/franchises/{franchiseId}/branches/{branchId}/products` — Agregar producto
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
-
-curl -s -X POST http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Producto A", "stock": 150}' | jq
-```
-
-```json
-{
-  "id": "c1b2c3d4-0000-0000-0000-000000000003",
-  "name": "Producto A",
-  "stock": 150,
-  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
-}
-```
-
----
-
-#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}/stock` — Modificar stock
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
-PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
-
-curl -s -X PATCH \
-  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID/stock \
-  -H "Content-Type: application/json" \
-  -d '{"stock": 200}' | jq
-```
-
-```json
-{
-  "id": "c1b2c3d4-0000-0000-0000-000000000003",
-  "name": "Producto A",
-  "stock": 200,
-  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
-}
-```
-
----
-
-#### PATCH `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}/name` — Renombrar producto
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
-PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
-
-curl -s -X PATCH \
-  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID/name \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Producto A Premium"}' | jq
-```
-
-```json
-{
-  "id": "c1b2c3d4-0000-0000-0000-000000000003",
-  "name": "Producto A Premium",
-  "stock": 200,
-  "branchId": "b1b2c3d4-0000-0000-0000-000000000002"
-}
-```
-
----
-
-#### DELETE `/api/v1/franchises/{franchiseId}/branches/{branchId}/products/{productId}` — Eliminar producto
-
-```bash
-FRANCHISE_ID="a1b2c3d4-0000-0000-0000-000000000001"
-BRANCH_ID="b1b2c3d4-0000-0000-0000-000000000002"
-PRODUCT_ID="c1b2c3d4-0000-0000-0000-000000000003"
-
-curl -s -X DELETE \
-  http://localhost:8080/api/v1/franchises/$FRANCHISE_ID/branches/$BRANCH_ID/products/$PRODUCT_ID \
-  -w "\nHTTP %{http_code}\n"
-```
-
-```
-HTTP 204
-```
 
 ---
 
@@ -429,7 +257,7 @@ BUILD SUCCESS
 | Lenguaje | Java 17 |
 | Tests | JUnit 5 + Testcontainers + WebTestClient |
 | Documentación | SpringDoc OpenAPI 3 (Swagger UI) |
-| Infraestructura | Terraform 1.5+ → AWS RDS |
+| Infraestructura | Terraform 1.5+ → GCP Cloud SQL |
 
 ### Estructura del proyecto
 

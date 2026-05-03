@@ -2,90 +2,109 @@ terraform {
   required_version = ">= 1.5.0"
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
+    google = {
+      source  = "hashicorp/google"
       version = "~> 5.0"
     }
   }
 }
 
-provider "aws" {
-  region = var.aws_region
+provider "google" {
+  project = var.gcp_project
+  region  = var.gcp_region
 }
 
-# ── Security Group ────────────────────────────────────────────────────────────
+# ── Private IP range for VPC peering ─────────────────────────────────────────
+# Cloud SQL con IP privada requiere un rango reservado en el VPC
+# y una conexión de peering con servicenetworking.googleapis.com
 
-resource "aws_security_group" "rds_sg" {
-  name        = "franchises-rds-sg"
-  description = "Allow PostgreSQL access to Franchises RDS"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "PostgreSQL"
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "franchises-rds-sg"
-    Project     = "nequi-franchises"
-    Environment = var.environment
-  }
+resource "google_compute_global_address" "private_ip_range" {
+  name          = "franchises-cloudsql-private-ip"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = var.vpc_network
 }
 
-# ── Subnet Group ──────────────────────────────────────────────────────────────
-
-resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "franchises-rds-subnet-group"
-  subnet_ids = var.subnet_ids
-
-  tags = {
-    Name        = "franchises-rds-subnet-group"
-    Project     = "nequi-franchises"
-    Environment = var.environment
-  }
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = var.vpc_network
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_range.name]
 }
 
-# ── RDS Instance ──────────────────────────────────────────────────────────────
+# ── Firewall rule — permitir acceso al puerto 5432 ───────────────────────────
 
-resource "aws_db_instance" "franchises_rds" {
-  identifier            = "franchises-rds"
-  engine                = "postgres"
-  engine_version        = "16"
-  instance_class        = "db.t3.micro"
-  allocated_storage     = 20
-  max_allocated_storage = 100
-  storage_type          = "gp2"
-  storage_encrypted     = true
+resource "google_compute_firewall" "allow_postgres" {
+  name    = "franchises-allow-postgres"
+  network = var.vpc_network
 
-  db_name  = var.db_name
-  username = var.db_username
-  password = var.db_password
+  allow {
+    protocol = "tcp"
+    ports    = ["5432"]
+  }
 
-  db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.name
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+  source_ranges = var.allowed_cidr_blocks
 
-  publicly_accessible = false
-  multi_az            = false
+  target_tags = ["franchises-app"]
+
+  description = "Permite acceso PostgreSQL a la app de franquicias"
+}
+
+# ── Cloud SQL Instance ────────────────────────────────────────────────────────
+
+resource "google_sql_database_instance" "franchises_db" {
+  name             = "franchises-cloudsql"
+  database_version = "POSTGRES_16"
+  region           = var.gcp_region
+
+  # Depende del peering para poder usar IP privada
+  depends_on = [google_service_networking_connection.private_vpc_connection]
+
+  settings {
+    tier              = "db-f1-micro"
+    availability_type = "ZONAL"
+    disk_size         = 20
+    disk_type         = "PD_SSD"
+    disk_autoresize   = true
+
+    ip_configuration {
+      ipv4_enabled    = false # Sin IP pública
+      private_network = var.vpc_network
+    }
+
+    backup_configuration {
+      enabled    = true
+      start_time = "03:00"
+      backup_retention_settings {
+        retained_backups = 7
+      }
+    }
+
+    maintenance_window {
+      day  = 1 # Lunes
+      hour = 4
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "100"
+    }
+  }
+
   deletion_protection = false
-  skip_final_snapshot = true
+}
 
-  backup_retention_period = 7
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "Mon:04:00-Mon:05:00"
+# ── Base de datos ─────────────────────────────────────────────────────────────
 
-  tags = {
-    Name        = "franchises-rds"
-    Project     = "nequi-franchises"
-    Environment = var.environment
-  }
+resource "google_sql_database" "franchises" {
+  name     = var.db_name
+  instance = google_sql_database_instance.franchises_db.name
+}
+
+# ── Usuario ───────────────────────────────────────────────────────────────────
+
+resource "google_sql_user" "app_user" {
+  name     = var.db_username
+  instance = google_sql_database_instance.franchises_db.name
+  password = var.db_password
 }

@@ -1,7 +1,17 @@
-variable "aws_region" {
-  description = "AWS region donde se despliega RDS"
+variable "gcp_project" {
+  description = "ID del proyecto de Google Cloud"
   type        = string
-  default     = "us-east-1"
+}
+
+variable "gcp_region" {
+  description = "Región de GCP donde se despliega Cloud SQL"
+  type        = string
+  default     = "us-central1"
+}
+
+variable "vpc_network" {
+  description = "Self-link o nombre del VPC donde se conectará Cloud SQL (p.ej. projects/MY_PROJECT/global/networks/default)"
+  type        = string
 }
 
 variable "db_name" {
@@ -11,31 +21,21 @@ variable "db_name" {
 }
 
 variable "db_username" {
-  description = "Usuario maestro de RDS"
+  description = "Usuario de la base de datos"
   type        = string
   sensitive   = true
 }
 
 variable "db_password" {
-  description = "Contraseña maestra de RDS"
+  description = "Contraseña del usuario de la base de datos"
   type        = string
   sensitive   = true
 }
 
-variable "vpc_id" {
-  description = "ID del VPC donde se creará el RDS"
-  type        = string
-}
-
-variable "subnet_ids" {
-  description = "Lista de subnet IDs para el subnet group (mínimo 2 en distintas AZs)"
-  type        = list(string)
-}
-
 variable "allowed_cidr_blocks" {
-  description = "CIDRs con acceso al puerto 5432"
+  description = "CIDRs con acceso al puerto 5432 (firewall rule)"
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = ["10.0.0.0/8"]
 }
 
 variable "environment" {
